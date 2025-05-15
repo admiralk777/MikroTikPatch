@@ -93,7 +93,6 @@ jobs:
       id: get_latest
       run: |
         echo $(uname -a)
-        apt-get update > /dev/null
         apt-get install -y squashfs-tools  mkisofs xorriso qemu-utils extlinux rsync > /dev/null
         LATEST_VERSION=${{ github.event.inputs.version }}
         if [ -z  "$_LATEST_VERSION" ]; then
