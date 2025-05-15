@@ -93,7 +93,8 @@ jobs:
       id: get_latest
       run: |
         echo $(uname -a)
-        apt-get install -y squashfs-tools  mkisofs xorriso qemu-utils extlinux rsync > /dev/null
+        sudo apt-get update > /dev/null
+        sudo apt-get install -y squashfs-tools  mkisofs xorriso qemu-utils extlinux rsync > /dev/null
         LATEST_VERSION=${{ github.event.inputs.version }}
         if [ -z  "$_LATEST_VERSION" ]; then
           LATEST_VERSION=$(wget -nv -O - https://upgrade.mikrotik.com/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
