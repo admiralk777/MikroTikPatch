@@ -36,12 +36,22 @@ permissions:
   contents: write
 
 env:
-   CUSTOM_NPK_SIGN_PRIVATE_KEY: 9B9C5D1DB2238DF015ECEF1D137C5DB249DC4128C6D0E3BAA0508FFAA63A8665
-   CUSTOM_NPK_SIGN_PUBLIC_KEY: 7D5C1B67162845017ADD2E7FD9DB003C0E056E0A3C5B12DE2E2E36A745330C1A
-   CUSTOM_LICENSE_PRIVATE_KEY: 2539974942E50662A16461D91CFB822A6D0F38D21A0F2DE63D4EC176C04B4002
-   CUSTOM_LICENSE_PUBLIC_KEY: BF3C625C28B572FDF486D1C87CB0B44FA1A63B5E2AD44F0FAFA23558DC86782D
-   MIKRO_LICENSE_PUBLIC_KEY: 8E1067E4305FCDC0CFBF95C10F96E5DFE8C49AEF486BD1A4E2E96C27F01E3E32
-   MIKRO_NPK_SIGN_PUBLIC_KEY: C293CED638A2A33C681FC8DE98EE26C54EADC5390C2DFCE197D35C83C416CF59
+  CUSTOM_LICENSE_PRIVATE_KEY: 9DBC845E9018537810FDAE62824322EEE1B12BAD81FCA28EC295FB397C61CE0B
+  CUSTOM_LICENSE_PUBLIC_KEY: 723A34A6E3300F23E4BAA06156B9327514AEC170732655F16E04C17928DD770F
+  CUSTOM_NPK_SIGN_PRIVATE_KEY: 7D008D9B80B036FB0205601FEE79D550927EBCA937B7008CC877281F2F8AC640
+  CUSTOM_NPK_SIGN_PUBLIC_KEY: 28F886E32C141123126CFBCAD56766E99D1720CEB1F12BE2468BEBE7662FBEDB
+  CUSTOM_CLOUD_PUBLIC_KEY: EXAMPLE
+  MIKRO_LICENSE_PUBLIC_KEY: 8E1067E4305FCDC0CFBF95C10F96E5DFE8C49AEF486BD1A4E2E96C27F01E3E32
+  MIKRO_NPK_SIGN_PUBLIC_KEY: C293CED638A2A33C681FC8DE98EE26C54EADC5390C2DFCE197D35C83C416CF59
+  MIKRO_CLOUD_PUBLIC_KEY: EXAMPLE
+  MIKRO_LICENCE_URL: mikrotik.com
+  CUSTOM_LICENCE_URL: EXAMPLE
+  MIKRO_UPGRADE_URL: download.mikrotik.com
+  CUSTOM_UPGRADE_URL: EXAMPLE
+  MIKRO_RENEW_URL: mikrotik.com
+  CUSTOM_RENEW_URL: EXAMPLE
+  MIKRO_CLOUD_URL: mikrotik.com
+  CUSTOM_CLOUD_URL: EXAMPLE
 
 jobs:
   Set_BuildTime:
@@ -85,11 +95,11 @@ jobs:
         echo $(uname -a)
         LATEST_VERSION=${{ github.event.inputs.version }}
         if [ -z  "$_LATEST_VERSION" ]; then
-          LATEST_VERSION=$(wget -nv -O - https://upgrade.mikrotik.com/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
+          LATEST_VERSION=$(wget -nv -O - https://${{ env.MIKRO_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
         fi
         echo Latest Version:$LATEST_VERSION
         if [ "${{ github.event_name }}" == "schedule" ]; then
-          _LATEST_VERSION=$(wget -nv -O - https://upgrade.mikrotik.com/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
+          _LATEST_VERSION=$(wget -nv -O - https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/NEWESTa7.${{ matrix.channel }} | cut -d ' ' -f1)
           if [ "$_LATEST_VERSION" == "$LATEST_VERSION" ]; then
             echo "No new version found"
             echo "has_new_version=false" >> $GITHUB_OUTPUT
@@ -99,7 +109,7 @@ jobs:
         echo "has_new_version=true" >> $GITHUB_OUTPUT
         BUILD_TIME=${{ needs.Set_BuildTime.outputs.BUILD_TIME }}
         echo Build Time:$BUILD_TIME
-        wget -nv -O CHANGELOG https://upgrade.mikrotik.com/routeros/$LATEST_VERSION/CHANGELOG
+        wget -nv -O CHANGELOG https://${{ env.MIKRO_UPGRADE_URL }}/routeros/$LATEST_VERSION/CHANGELOG
         cat CHANGELOG
         echo "LATEST_VERSION=${LATEST_VERSION}" >> $GITHUB_ENV
         echo "BUILD_TIME=${BUILD_TIME}" >> $GITHUB_ENV
@@ -111,11 +121,17 @@ jobs:
           echo "ARCH=$ARCH" >> $GITHUB_ENV
         fi
         has_patched_npk=false
-        if wget -nv --spider https://upgrade.mikrotik.com/routeros/$LATEST_VERSION/routeros-$LATEST_VERSION$ARCH.npk; then
+        if wget -nv --spider https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/$LATEST_VERSION/routeros-$LATEST_VERSION$ARCH.npk; then
           echo "RouterOS NPK file exists, attempting to download..."
-          if wget -nv -O routeros-$LATEST_VERSION$ARCH.npk https://upgrade.mikrotik.com/routeros/$LATEST_VERSION/routeros-$LATEST_VERSION$ARCH.npk; then
+          if wget -nv -O routeros-$LATEST_VERSION$ARCH.npk https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/$LATEST_VERSION/routeros-$LATEST_VERSION$ARCH.npk; then
             echo "RouterOS NPK file downloaded successfully."
-            has_patched_npk=true
+            if wget -nv --spider https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/$LATEST_VERSION/wireless-$LATEST_VERSION$ARCH.npk; then
+              echo "Wireless NPK file exists, attempting to download..."
+              if wget -nv -O wireless-$LATEST_VERSION$ARCH.npk https://${{ env.CUSTOM_UPGRADE_URL }}/routeros/$LATEST_VERSION/wireless-$LATEST_VERSION$ARCH.npk; then
+                echo "Wireless NPK file downloaded successfully."
+                has_patched_npk=true
+              fi
+            fi
           fi
         fi
         echo "has_patched_npk=$has_patched_npk" >> $GITHUB_OUTPUT
@@ -230,7 +246,8 @@ jobs:
           sudo mv ./new_iso/routeros-$LATEST_VERSION$ARCH.npk ./
           sudo -E python3 patch.py npk routeros-$LATEST_VERSION$ARCH.npk
         else
-          sudo -E python3 npk.py sign routeros-$LATEST_VERSION$ARCH.npk routeros-$LATEST_VERSION$ARCH.npk
+          sudo cp -f wireless-$LATEST_VERSION$ARCH.npk ./new_iso/
+          sudo cp -f routeros-$LATEST_VERSION$ARCH.npk ./new_iso/
         fi
         NPK_FILES=$(find ./new_iso/*.npk)
         for file in $NPK_FILES; do
@@ -453,6 +470,26 @@ jobs:
         sudo rm chr-$LATEST_VERSION$ARCH.vhdx
         sudo rm chr-$LATEST_VERSION$ARCH.vdi
         sudo rm chr-$LATEST_VERSION$ARCH.img
+
+
+#    - name: Upload Files
+#      if: steps.get_latest.outputs.has_new_version == 'true'
+#      run: |
+#        if [ "${{ steps.get_latest.outputs.has_patched_npk }}" == "false" ]; then
+#          OUTDIR="$LATEST_VERSION-UNDONE"
+#        else
+#          OUTDIR="$LATEST_VERSION"
+#        fi
+#        sudo mkdir -p ./publish/$OUTDIR
+#        sudo cp CHANGELOG ./publish/$OUTDIR/
+#        sudo cp ./all_packages/*.npk ./publish/$OUTDIR/
+#        sudo chown -R root:root ./publish/
+#        sudo apt-get install -y lftp ssh sshpass > /dev/null 2>&1
+#        sudo -E lftp -u ${{ secrets.SSH_USERNAME }},'${{ secrets.SSH_PASSWORD }}' sftp://${{ secrets.SSH_SERVER }}:${{ secrets.SSH_PORT }} <<EOF
+#        set sftp:auto-confirm yes
+#        mirror --reverse --verbose --only-newer ./publish ${{ secrets.SSH_DIRECTORY }}
+#        bye
+#        EOF
         
     - name: Clear Cloudflare cache
       if: steps.get_latest.outputs.has_new_version == 'true'
@@ -479,8 +516,10 @@ jobs:
         fi
 
     - name: Create Release tag ${{ env.LATEST_VERSION }} ${{ matrix.arch }}
-      if: steps.get_latest.outputs.has_new_version == 'true' && steps.get_latest.outputs.has_patched_npk == 'true'
+      if: steps.get_latest.outputs.has_patched_npk == 'true'
       uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       with:
         name: "RouterOS ${{ env.LATEST_VERSION }} ${{ matrix.arch }}"
         body_path: "CHANGELOG"
@@ -494,34 +533,67 @@ jobs:
           install-image-${{ env.LATEST_VERSION }}.zip
           routeros-${{ env.LATEST_VERSION }}${{ env.ARCH }}.npk
           all_packages-*-${{ env.LATEST_VERSION }}.zip
-          
-  Create_CSV:
-    needs: Patch_RouterOS
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: latest_version_*
-          merge-multiple: true
-      - name: Create Packages CSV File
-        run: |
-          sudo apt-get install ssh sshpass
-          for file in artifacts/latest_version_*.json; do
-            if [ -f "$file" ]; then
-              arch=$(jq -r '.arch' "$file")
-              channel=$(jq -r '.channel' "$file")
-              latest_version=$(jq -r '.latest_version' "$file")
-              build_time=$(jq -r '.build_time' "$file")
-              has_patched_npk=$(jq -r '.patched' "$file")
-              echo "Arch: $arch, Channel: $channel, Latest Version: $latest_version,Build Time: $build_time,Has Patched NPK: $has_patched_npk"
-              if [ "$has_patched_npk" == "false" ]; then
-                OUTDIR="$latest_version-UNDONE"
-              else
-                OUTDIR="$latest_version"
-              fi
-              sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }} "echo $latest_version $build_time | tee /rw/disk/${{ secrets.SSH_DIRECTORY }}/NEWESTa7.$channel; /rw/disk/${{ secrets.SSH_DIRECTORY }}/packages.sh /rw/disk/${{ secrets.SSH_DIRECTORY }}/$OUTDIR"
-            fi
-          done
-          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }} "chown -R 32768:32768 /rw/disk/${{ secrets.SSH_DIRECTORY }}/"
+
+    - name: Upload ISO artifact
+      if: steps.get_latest.outputs.has_new_version == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: mikrotik-${{ env.LATEST_VERSION }}${{ env.ARCH }}-iso
+        path: mikrotik-${{ env.LATEST_VERSION }}${{ env.ARCH }}.iso
+
+    - name: Upload NPK artifacts
+      if: steps.get_latest.outputs.has_new_version == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: npk-packages-${{ env.LATEST_VERSION }}${{ env.ARCH }}
+        path: |
+          all_packages/*.npk
+          all_packages-${{ matrix.arch }}-${{ env.LATEST_VERSION }}.zip
+
+    - name: Upload CHR artifacts
+      if: steps.get_latest.outputs.has_new_version == 'true' && steps.get_latest.outputs.has_patched_npk == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: chr-images-${{ env.LATEST_VERSION }}${{ env.ARCH }}
+        path: |
+          chr-${{ env.LATEST_VERSION }}*.zip
+
+    - name: Upload Netinstall artifacts
+      if: steps.get_latest.outputs.has_new_version == 'true' && matrix.arch == 'x86' && steps.get_latest.outputs.has_patched_npk == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: netinstall-${{ env.LATEST_VERSION }}
+        path: |
+          netinstall-${{ env.LATEST_VERSION }}.*
+          install-image-${{ env.LATEST_VERSION }}.zip
+
+#  Create_CSV:
+#    needs: Patch_RouterOS
+#    runs-on: ubuntu-22.04
+#    steps:
+#      - name: Download artifacts
+#        uses: actions/download-artifact@v4
+#        with:
+#          path: artifacts
+#          pattern: latest_version_*
+#          merge-multiple: true
+#      - name: Create Packages CSV File
+#        run: |
+#          sudo apt-get install ssh sshpass
+#          for file in artifacts/latest_version_*.json; do
+#            if [ -f "$file" ]; then
+#              arch=$(jq -r '.arch' "$file")
+#              channel=$(jq -r '.channel' "$file")
+#              latest_version=$(jq -r '.latest_version' "$file")
+#              build_time=$(jq -r '.build_time' "$file")
+#              has_patched_npk=$(jq -r '.patched' "$file")
+#              echo "Arch: $arch, Channel: $channel, Latest Version: $latest_version,Build Time: $build_time,Has Patched NPK: $has_patched_npk"
+#              if [ "$has_patched_npk" == "false" ]; then
+#                OUTDIR="$latest_version-UNDONE"
+#              else
+#                OUTDIR="$latest_version"
+#              fi
+#              sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }} "echo $latest_version $build_time | tee /rw/disk/${{ secrets.SSH_DIRECTORY }}/NEWESTa7.$channel; /rw/disk/${{ secrets.SSH_DIRECTORY }}/packages.sh /rw/disk/${{ secrets.SSH_DIRECTORY }}/$OUTDIR"
+#            fi
+#          done
+#          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_SERVER }} "chown -R 32768:32768 /rw/disk/${{ secrets.SSH_DIRECTORY }}/"
